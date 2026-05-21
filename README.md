@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Spoonflower Explorer
+
+Search and explore Spoonflower artists, designs, and patterns. Collect inspiration from indie makers worldwide.
+
+## Features
+
+- **Search**: Find designs by keyword, style, or theme
+- **Filters**: Sort by Best Selling, Best Match, Newest, Most Favorited; filter by substrate (Fabric, Wallpaper, Home Decor)
+- **Artist Profiles**: Click on an artist name to view their profile, bio, location, and recent designs
+- **Save Designs**: Bookmark designs you like with the save button
+- **Responsive**: Works on desktop and mobile
+
+## Tech Stack
+
+- Next.js 16 (React 19) + TypeScript
+- Tailwind CSS 4
+- Cheerio (server-side HTML parsing for Spoonflower data)
+- Vercel deployment ready
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 with your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+  app/
+    api/
+      search/route.ts    — Search API (fetches & parses Spoonflower shop pages)
+      artist/route.ts    — Artist profile API (fetches & parses artist profile pages)
+    globals.css          — Custom dark theme styling
+    layout.tsx           — Root layout with metadata
+    page.tsx             — Main UI (search, grid, artist modal, saved designs)
+  lib/
+    types.ts             — Shared TypeScript types
+```
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Push this repo to GitHub
+2. Go to [vercel.com/new](https://vercel.com/new) and import the repo
+3. Vercel will auto-detect Next.js and deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Or link to your existing Vercel account:
+
+```bash
+npx vercel
+```
+
+## API Endpoints
+
+### `/api/search?q=flowers&sort=bestSelling&substrate=fabric&page=1`
+
+Returns design search results from Spoonflower.
+
+### `/api/artist?name=username`
+
+Returns artist profile details from Spoonflower.
