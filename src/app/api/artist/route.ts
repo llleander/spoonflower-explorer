@@ -49,45 +49,72 @@ export async function GET(request: NextRequest) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
+    // Avatar: look for profile-specific data-testid or image patterns
     const avatarUrl =
-      $(".profile-avatar img, .avatar img, .user-image img").first().attr("src") ||
+      $("img[data-testid*='avatar'], img[data-testid*='profileImage']").first().attr("src") ||
+      $("[class*='ProfileHero'] img, [class*='ProfileImage'] img, [class*='Avatar'] img").first().attr("src") ||
       $("img[src*='avatar'], img[src*='profile']").first().attr("src") ||
       "";
 
+    // Bio
     const bio =
-      $(".profile-bio, .bio, .description, .about").first().text().trim();
+      $("[data-testid*='bio'], [class*='ProfileBio'], [class*='bio'], [class*='about']").first().text().trim();
 
+    // Location
     const location =
-      $(".profile-location, .location, .user-location").first().text().trim();
+      $("[data-testid*='location'], [class*='ProfileLocation'], [class*='location']").first().text().trim();
 
+    // Total designs
     const totalDesignsText =
-      $(".design-count, .total-designs, [data-design-count]").first().text().trim();
+      $("[data-testid*='designCount'], [class*='designCount'], [class*='DesignCount']").first().text().trim();
     const totalDesigns = parseInt(totalDesignsText.replace(/[^\d]/g, ""), 10) || 0;
 
+    // Recent designs: use data-testid selectors first, then CSS module fallback
     const recentDesigns: ArtistProfile["recentDesigns"] = [];
 
-    $(".design-card, .product-card, .grid-item, .user-designs .item").each(
-      (_i, el) => {
+    $('[data-testid="productCard-image"]').each((_i, el) => {
+      if (_i >= 12) return false;
+      const $img = $(el);
+      const imageUrl = $img.attr("src") || $img.attr("data-src") || "";
+      const $card = $img.closest('[class*="ProductCard"]');
+      const $titleLink = $card.find('[data-testid="productCard-title"]');
+      const $imageLink = $img.closest('[data-testid="productCard-image-link"]');
+
+      const name = $titleLink.text().trim() || $img.attr("alt") || "";
+      const designUrl = $imageLink.attr("href") || $titleLink.attr("href") || "";
+
+      if (imageUrl) {
+        recentDesigns.push({
+          name,
+          imageUrl: normalizeUrl(imageUrl),
+          designUrl: normalizeUrl(designUrl),
+        });
+      }
+    });
+
+    // Fallback: spoonflower CDN images
+    if (recentDesigns.length === 0) {
+      $("img[src*='img.spoonflower.com']").each((_i, el) => {
         if (_i >= 12) return false;
-        const $el = $(el);
-        const name = $el.find(".design-name, .title, h3, h4").first().text().trim() || $el.find("a").first().attr("title") || "";
-        const imageUrl = $el.find("img").first().attr("src") || $el.find("img").first().attr("data-src") || "";
-        const designUrl = $el.find("a").first().attr("href") || "";
+        const $img = $(el);
+        const imageUrl = $img.attr("src") || "";
+        const name = $img.attr("alt") || "";
+        const designUrl = $img.closest("a").attr("href") || "";
 
         if (imageUrl) {
           recentDesigns.push({
             name,
-            imageUrl: imageUrl.startsWith("//") ? `https:${imageUrl}` : imageUrl.startsWith("/") ? `https://www.spoonflower.com${imageUrl}` : imageUrl,
-            designUrl: designUrl.startsWith("/") ? `https://www.spoonflower.com${designUrl}` : designUrl.startsWith("http") ? designUrl : "",
+            imageUrl: normalizeUrl(imageUrl),
+            designUrl: normalizeUrl(designUrl),
           });
         }
-      }
-    );
+      });
+    }
 
     const profile: ArtistProfile = {
       name: artistName,
       bio,
-      avatarUrl: avatarUrl.startsWith("//") ? `https:${avatarUrl}` : avatarUrl.startsWith("/") ? `https://www.spoonflower.com${avatarUrl}` : avatarUrl,
+      avatarUrl: normalizeUrl(avatarUrl),
       location,
       totalDesigns,
       profileUrl: url,
@@ -102,4 +129,11 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function normalizeUrl(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("/")) return `https://www.spoonflower.com${url}`;
+  return url;
 }

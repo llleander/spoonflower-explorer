@@ -53,55 +53,41 @@ export async function GET(request: NextRequest) {
 
     const designs: DesignItem[] = [];
 
-    // Parse design cards from Spoonflower shop page
-    $(".product-card, .design-card, .grid-product-card, [data-testid='product-card']").each(
-      (_i, el) => {
-        const $el = $(el);
+    // Primary: use data-testid selectors (Spoonflower uses CSS Modules with hashed names)
+    $('[data-testid="productCard-image"]').each((_i, el) => {
+      const $img = $(el);
+      const imageUrl = $img.attr("src") || $img.attr("data-src") || "";
+      if (!imageUrl) return;
 
-        const name =
-          $el.find(".design-name, .product-name, .title, h3, h4").first().text().trim() ||
-          $el.find("a").first().attr("title") ||
-          "";
+      // Walk up to the card container
+      const $card = $img.closest('[class*="ProductCard"]');
+      const $imageLink = $img.closest('[data-testid="productCard-image-link"]');
+      const $titleLink = $card.find('[data-testid="productCard-title"]');
+      const $artistLink = $card.find('[data-testid="productCard-screenName"]');
 
-        const designUrl =
-          $el.find("a").first().attr("href") || "";
+      const name = $titleLink.text().trim() || $img.attr("alt") || extractNameFromImageUrl(imageUrl);
+      const designUrl = $imageLink.attr("href") || $titleLink.attr("href") || "";
+      const artistName = $artistLink.text().trim() || "";
+      const artistHref = $artistLink.attr("href") || "";
 
-        const imageUrl =
-          $el.find("img").first().attr("src") ||
-          $el.find("img").first().attr("data-src") ||
-          "";
+      const id = extractDesignIdFromUrl(imageUrl) || extractDesignIdFromUrl(designUrl) || `design-${_i}`;
 
-        const artistName =
-          $el.find(".artist-name, .designer-name, .creator-name").first().text().trim() ||
-          extractArtistFromUrl(designUrl);
+      designs.push({
+        id,
+        name,
+        imageUrl: normalizeImageUrl(imageUrl),
+        artistName,
+        artistUrl: artistHref.startsWith("/")
+          ? `https://www.spoonflower.com${artistHref}`
+          : artistHref || `https://www.spoonflower.com/en/profile/${artistName}`,
+        favorites: 0,
+        designUrl: designUrl.startsWith("/")
+          ? `https://www.spoonflower.com${designUrl}`
+          : designUrl,
+      });
+    });
 
-        const artistUrl = `/en/profile/${artistName}`;
-
-        const favoritesText =
-          $el.find(".favorites, .fav-count, [data-favorites]").first().text().trim() ||
-          "0";
-
-        const favorites = parseInt(favoritesText.replace(/[^\d]/g, ""), 10) || 0;
-
-        const id = extractDesignIdFromUrl(designUrl) || `design-${_i}`;
-
-        if (name || imageUrl) {
-          designs.push({
-            id,
-            name,
-            imageUrl: normalizeImageUrl(imageUrl),
-            artistName,
-            artistUrl,
-            favorites,
-            designUrl: designUrl.startsWith("/")
-              ? `https://www.spoonflower.com${designUrl}`
-              : designUrl,
-          });
-        }
-      }
-    );
-
-    // Fallback: try parsing from JSON in script tags or other structures
+    // Fallback: images with spoonflower CDN src that weren't already captured
     if (designs.length === 0) {
       $("img[src*='img.spoonflower.com']").each((_i, el) => {
         const $img = $(el);
@@ -109,9 +95,10 @@ export async function GET(request: NextRequest) {
         const alt = $img.attr("alt") || "";
         const parentLink = $img.closest("a");
         const designUrl = parentLink.attr("href") || "";
-        const artistName =
-          parentLink.find(".artist-name, .designer-name").first().text().trim() ||
-          extractArtistFromUrl(designUrl);
+
+        // Try to find artist info near the image
+        const $parent = $img.parent().parent().parent();
+        const artistName = $parent.find("a[href*='/profile/']").first().text().trim();
 
         const name = alt || extractNameFromImageUrl(imageUrl);
 
@@ -121,7 +108,9 @@ export async function GET(request: NextRequest) {
             name,
             imageUrl: normalizeImageUrl(imageUrl),
             artistName,
-            artistUrl: `/en/profile/${artistName}`,
+            artistUrl: artistName
+              ? `https://www.spoonflower.com/en/profile/${artistName}`
+              : "",
             favorites: 0,
             designUrl: designUrl.startsWith("/")
               ? `https://www.spoonflower.com${designUrl}`
@@ -131,17 +120,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Parse total count from pagination
-    const totalText = $(".pagination-info, .total-count, .result-count").first().text().trim();
+    // Parse total count from pagination or header
+    const totalText = $(".pagination-info, .total-count, .result-count, [class*='Pagination']").first().text().trim();
     const totalMatch = totalText.match(/(\d+)/);
     const total = totalMatch ? parseInt(totalMatch[1], 10) : designs.length;
 
     return NextResponse.json({
       query,
       designs,
-      total,
+      total: total || designs.length,
       page: parseInt(page, 10),
-      hasMore: designs.length >= 48,
+      hasMore: designs.length >= 24,
     });
   } catch (error) {
     console.error("Spoonflower fetch error:", error);
@@ -150,12 +139,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function extractArtistFromUrl(url: string): string {
-  if (!url) return "";
-  const match = url.match(/\/profile\/([^\/]+)/);
-  return match ? match[1] : "";
 }
 
 function extractDesignIdFromUrl(url: string): string {
